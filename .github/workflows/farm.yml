@@ -1,0 +1,83 @@
+name: Farm GitHub Achievements
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_prs:
+        description: 'Nombre de PRs à fusionner (16 pour Silver, 128 pour Gold Pull Shark)'
+        required: true
+        default: '16'
+        type: choice
+        options:
+          - '2'
+          - '16'
+          - '128'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  farm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git config
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: ⚡ Unlock Quickdraw
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Ouverture d'une issue..."
+          ISSUE_URL=$(gh issue create --title "Quickdraw Farm" --body "Unlocking Quickdraw achievement")
+          echo "Issue créée : $ISSUE_URL. Fermeture immédiate..."
+          gh issue close "$ISSUE_URL"
+          echo "✅ Quickdraw complété !"
+
+      - name: 🦈 Unlock YOLO, Pair Extraordinaire & Pull Shark
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ inputs.target_prs }}"
+          echo "Début du farm de $TARGET PRs..."
+
+          DEFAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+          for i in $(seq 1 $TARGET); do
+            BRANCH="farm-branch-$i-$(date +%s)"
+            git checkout -b "$BRANCH"
+            
+            mkdir -p farm
+            echo "Farm commit $i at $(date)" > "farm/item_$i.txt"
+            git add "farm/item_$i.txt"
+            
+            # Commit avec co-author pour Pair Extraordinaire
+            git commit -m "Achievement item $i
+
+          Co-authored-by: bot-partner <bot-partner@users.noreply.github.com>"
+            
+            git push origin "$BRANCH"
+
+            # Créer la PR
+            PR_URL=$(gh pr create --title "Farm PR #$i" --body "Automatic PR for Pull Shark and achievements" --base "$DEFAULT_BRANCH" --head "$BRANCH")
+            echo "PR créée : $PR_URL"
+
+            # Fusionner immédiatement sans review (YOLO + Pull Shark)
+            gh pr merge "$PR_URL" --squash --delete-branch
+            echo "PR #$i fusionnée avec succès !"
+
+            git checkout "$DEFAULT_BRANCH"
+            git pull origin "$DEFAULT_BRANCH"
+            
+            # Légère pause
+            sleep 1
+          done
+          echo "🎉 Succès débloqués : Quickdraw, YOLO, Pair Extraordinaire et Pull Shark !"
